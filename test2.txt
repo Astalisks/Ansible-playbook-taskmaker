@@ -1,0 +1,26 @@
+playbookを打っているホストからscp sample.tar.gz targethost:/home/testuser/testdir/する
+
+- name: test
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: synchronize-sample.tar.gz
+      ansible.builtin.synchronize:
+        src: sample.tar.gz
+        dest: /home/testuser/testdir/
+
+    - name: extract-sample-tar-gz
+    hosts: all
+    become: true
+    gather_facts: false
+
+    tasks:
+        - name: tar-C-home-testuser-testdir-zxvf-sample.tar.gz
+        ansible.builtin.unarchive:
+            src: /home/testuser/testdir/sample.tar.gz
+            dest: /home/testuser/testdir/
+            remote_src: true
+            owner: testuser
+            group: testuser
