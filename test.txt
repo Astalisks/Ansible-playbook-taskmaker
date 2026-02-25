@@ -1,0 +1,107 @@
+- name: test
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: systemd-detect-virt
+      ansible.builtin.command: systemd-detect-virt
+      register: virt
+      changed_when: false
+      failed_when: "'none' not in virt.stdout"
+
+    - name: systemd-detect-virt
+      ansible.builtin.command: systemd-detect-virt
+      register: virt
+      changed_when: false
+      failed_when: >
+        ('kvm' not in virt.stdout) and
+        ('vmware' not in virt.stdout)
+
+
+    - name: systemctl-status-bondwatch.service
+      ansible.builtin.command: systemctl status bondwatch.service
+      register: bondwatch_status
+      changed_when: false
+      failed_when: "'active (running)' not in bondwatch_status.stdout"
+
+    - name: yum-list-installed-and-grep-bondwatch-before
+      ansible.builtin.shell: "yum list installed | grep -E '^bondwatch\\.'"
+      register: bondwatch_before
+      changed_when: false
+      failed_when: "'1.5.0' not in bondwatch_before.stdout"
+
+    - name: yum-update-y-bondwatch
+      ansible.builtin.package:
+        name: bondwatch
+        state: latest
+      register: bondwatch_pkg
+
+    - name: yum-list-installed-and-grep-bondwatch-after
+      ansible.builtin.shell: "yum list installed | grep -E '^bondwatch\\.'"
+      register: bondwatch_after
+      changed_when: false
+      failed_when: "'1.6.0' not in bondwatch_after.stdout"
+
+    - name: remove-etc-tmpfiles.d-tmp.conf-if-exists
+      ansible.builtin.file:
+        path: /etc/tmpfiles.d/tmp.conf
+        state: absent
+
+    - name: remove-etc-tmpfiles.d-tmp-override.conf-if-exists
+      ansible.builtin.file:
+        path: /etc/tmpfiles.d/tmp-override.conf
+        state: absent
+
+    - name: systemctl-restart-bondwatch.service
+      ansible.builtin.systemd:
+        name: bondwatch.service
+        state: restarted
+
+    - name: systemctl-status-bondwatch.service
+      ansible.builtin.command: systemctl status bondwatch.service
+      register: bondwatch_status_after_restart
+      changed_when: false
+      failed_when: "'active (running)' not in bondwatch_status_after_restart.stdout"
+
+    - name: systemctl-list-timers-and-grep-tmpfiles-clean
+      ansible.builtin.shell: "systemctl list-timers | grep tmpfiles-clean"
+      register: tmpfiles_clean_timers
+      changed_when: false
+      failed_when: tmpfiles_clean_timers.rc != 0
+
+    - name: systemctl-edit-full-systemd-tmpfiles-clean.timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/systemd-tmpfiles-clean.timer
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Daily Cleanup of Temporary Directories
+          Documentation=man:tmpfiles.d(5) man:systemd-tmpfiles(8)
+
+          [Timer]
+          #OnBootSec=15min
+          #OnUnitActiveSec=1d
+          OnCalendar=*-*-* 15:00:00
+          Persistent=true
+      register: tmpfiles_timer_unit
+
+    - name: systemctl-daemon-reload
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: systemctl-restart-systemd-tmpfiles-clean.timer
+      ansible.builtin.systemd:
+        name: systemd-tmpfiles-clean.timer
+        state: restarted
+        enabled: true
+
+    - name: systemctl-status-systemd-tmpfiles-clean.timer
+      ansible.builtin.command: systemctl status systemd-tmpfiles-clean.timer
+      register: tmpfiles_timer_status
+      changed_when: false
+      failed_when:
+        - "'Active: active (running)' not in tmpfiles_timer_status.stdout"
+        - "'15:00:00' not in tmpfiles_timer_status.stdout"
