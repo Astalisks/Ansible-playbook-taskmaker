@@ -1,5 +1,3 @@
-playbookを打っているホストからscp sample.tar.gz targethost:/home/testuser/testdir/する
-
 - name: test
   hosts: all
   become: true
@@ -11,13 +9,7 @@ playbookを打っているホストからscp sample.tar.gz targethost:/home/test
         src: sample.tar.gz
         dest: /home/testuser/testdir/
 
-    - name: extract-sample-tar-gz
-    hosts: all
-    become: true
-    gather_facts: false
-
-    tasks:
-        - name: tar-C-home-testuser-testdir-zxvf-sample.tar.gz
+    - name: tar-C-home-testuser-testdir-zxvf-sample.tar.gz
         ansible.builtin.unarchive:
             src: /home/testuser/testdir/sample.tar.gz
             dest: /home/testuser/testdir/
